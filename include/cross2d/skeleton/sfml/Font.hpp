@@ -37,7 +37,13 @@
 #include "Rect.hpp"
 #include "Vector2.hpp"
 
+#ifndef __NO_FREETYPE__
+#include <ft2build.h>
+#endif
+
 namespace c2d {
+
+typedef unsigned long FT_ULong;
 
 ////////////////////////////////////////////////////////////
 /// \brief Class for loading and manipulating character fonts
@@ -143,7 +149,7 @@ namespace c2d {
         /// \return The glyph corresponding to \a codePoint and \a characterSize
         ///
         ////////////////////////////////////////////////////////////
-        virtual const Glyph &getGlyph(uint32_t codePoint, unsigned int characterSize,
+        virtual const Glyph &getGlyph(FT_ULong codePoint, unsigned int characterSize,
                                       bool bold, float outlineThickness = 0) const;
 
         ////////////////////////////////////////////////////////////
@@ -162,7 +168,7 @@ namespace c2d {
         /// \return Kerning value for \a first and \a second, in pixels
         ///
         ////////////////////////////////////////////////////////////
-        virtual float getKerning(uint32_t first, uint32_t second, unsigned int characterSize, bool bold) const;
+        virtual float getKerning(FT_ULong first, FT_ULong second, unsigned int characterSize, bool bold) const;
 
         ////////////////////////////////////////////////////////////
         /// \brief Get the line spacing
@@ -251,7 +257,7 @@ namespace c2d {
         ////////////////////////////////////////////////////////////
         // Types
         ////////////////////////////////////////////////////////////
-        typedef std::map<uint64_t, Glyph> GlyphTable; ///< Table mapping a codepoint to its glyph
+        typedef std::map<FT_ULong, std::map<uint64_t, Glyph> > GlyphTable; ///< Table mapping a codepoint to its glyph
 
         ////////////////////////////////////////////////////////////
         /// \brief Structure defining a page of glyphs
@@ -285,7 +291,7 @@ namespace c2d {
         /// \return The glyph corresponding to \a codePoint and \a characterSize
         ///
         ////////////////////////////////////////////////////////////
-        virtual Glyph loadGlyph(uint32_t codePoint, unsigned int characterSize,
+        virtual Glyph loadGlyph(FT_ULong codePoint, unsigned int characterSize,
                                 bool bold, float outlineThickness) const;
 
         ////////////////////////////////////////////////////////////

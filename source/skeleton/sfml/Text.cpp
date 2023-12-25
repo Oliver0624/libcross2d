@@ -32,6 +32,8 @@ using namespace c2d;
 
 namespace {
 
+    static unsigned char utf8_first_mask[] = { 0x7F, 0x1F, 0x0F, 0x07, 0x03, 0x01 };
+
     // Add an underline or strikethrough line to the vertex array
     void addLine(c2d::VertexArray &vertices, c2d::Vector2i texSize,
                  float lineLength, float lineTop, const c2d::Color &color, float offset,
@@ -269,8 +271,9 @@ namespace c2d {
         // Adjust the index if it's out of range
         //if (index > m_string.getSize())
         //    index = m_string.getSize();
-        if (index > m_string.length())
-            index = m_string.length();
+        
+        //if (index > m_string.length())
+        //    index = m_string.length();
 
         // Precompute the variables needed by the algorithm
         bool bold = (m_style & Bold) != 0;
@@ -279,9 +282,24 @@ namespace c2d {
 
         // Compute the position
         Vector2f position;
-        uint32_t prevChar = 0;
-        for (std::size_t i = 0; i < index; ++i) {
-            auto curChar = (uint32_t) m_string[i];
+        FT_ULong prevChar = 0;
+        std::size_t pos = 0;
+        for (std::size_t i = 0; i < index && pos < m_string.length(); i++) {
+            int bytesToRead = Utility::getCharacterBytes(static_cast<unsigned char>(m_string[pos]));
+            if (bytesToRead <= 0) // illegal UTF-8 character
+                return {};
+            
+            if (pos + bytesToRead > m_string.length())
+                bytesToRead = m_string.length() - bytesToRead;
+
+            FT_ULong curChar = 0;
+            for (int j = 0; j < bytesToRead; ++j) {
+                curChar <<= 6;
+                if (j == 0)
+                    curChar |= (m_string[pos] & utf8_first_mask[bytesToRead-1]);
+                else
+                    curChar |= (m_string[pos + j] & 0x3F);
+            }
 
             // Apply the kerning offset
             position.x += static_cast<float>(m_font->getKerning(prevChar, curChar, m_characterSize, bold));
@@ -305,6 +323,7 @@ namespace c2d {
 
             // For regular characters, add the advance offset of the glyph
             position.x += static_cast<float>(m_font->getGlyph(curChar, m_characterSize, bold).advance);
+            pos += bytesToRead;
         }
 
         // Transform the position to global coordinates
@@ -503,7 +522,7 @@ namespace c2d {
         auto minY = static_cast<float>(m_characterSize);
         float maxX = 0.f;
         float maxY = 0.f;
-        uint32_t prevChar = 0;
+        FT_ULong prevChar = 0;
 
         std::vector<std::string> words = Utility::split(m_string, " ");
         for (size_t i = 0; i < words.size(); i++) {
@@ -515,9 +534,33 @@ namespace c2d {
                 auto width = (float) (words[i].size() * m_characterSize);
 #else
                 float width = 0;
-                for (auto &c: words[i]) {
-                    const Glyph &g = m_font->getGlyph(c, m_characterSize, bold, m_outlineThickness);
+
+                //for (auto &c: words[i]) {
+                //    const Glyph &g = m_font->getGlyph(c, m_characterSize, bold, m_outlineThickness); //OLIVER
+                //    width += g.bounds.width;
+                //}
+
+                for (std::size_t pos = 0; pos < words[i].length(); ) {
+                    int bytesToRead = Utility::getCharacterBytes(static_cast<unsigned char>(words[i][pos]));
+                    if (bytesToRead <= 0) // illegal UTF-8 character
+                        break;
+                    
+                    if (pos + bytesToRead > words[i].length())
+                        bytesToRead = words[i].length() - bytesToRead;
+
+                    FT_ULong curChar = 0;
+                    for (int j = 0; j < bytesToRead; ++j) {
+                        curChar <<= 6;
+                        if (j == 0)
+                            curChar |= (words[i][pos] & utf8_first_mask[bytesToRead-1]);
+                        else
+                            curChar |= (words[i][pos + j] & 0x3F);
+                    }
+
+                    const Glyph &g = m_font->getGlyph(curChar, m_characterSize, bold, m_outlineThickness);
                     width += g.bounds.width;
+
+                    pos += bytesToRead;
                 }
 #endif
                 if ((x + width) * getScale().x > m_max_size.x) {
@@ -531,8 +574,25 @@ namespace c2d {
                 words[i] += " ";
             }
 
-            for (std::size_t j = 0; j < words[i].length(); j++) {
-                auto curChar = (uint32_t) words[i][j];
+            //for (std::size_t j = 0; j < words[i].length(); j++) {
+                //auto curChar = (FT_ULong) words[i][j];
+            
+            for (std::size_t pos = 0; pos < words[i].length(); ) {
+                int bytesToRead = Utility::getCharacterBytes(static_cast<unsigned char>(words[i][pos]));
+                if (bytesToRead <= 0) // illegal UTF-8 character
+                    break; // OLIVER TODO
+                
+                if (pos + bytesToRead > words[i].length())
+                    bytesToRead = words[i].length() - bytesToRead;
+
+                FT_ULong curChar = 0;
+                for (int j = 0; j < bytesToRead; ++j) {
+                    curChar <<= 6;
+                    if (j == 0)
+                        curChar |= (words[i][pos] & utf8_first_mask[bytesToRead-1]);
+                    else
+                        curChar |= (words[i][pos + j] & 0x3F);
+                }
 
                 // Apply the kerning offset
                 x += m_font->getKerning(prevChar, curChar, m_characterSize, bold);
@@ -634,6 +694,7 @@ namespace c2d {
 
                 // Advance to the next character
                 x += glyph.advance;
+                pos += bytesToRead;;
             }
 
             // If we're using the underlined style, add the last line

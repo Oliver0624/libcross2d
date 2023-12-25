@@ -67,10 +67,10 @@ namespace c2d {
         bool loadFromMemory(const char *fontData, size_t fontDataSize,
                             const char *texData, size_t texDataSize);
 
-        const Glyph &getGlyph(uint32_t codePoint, unsigned int characterSize,
+        const Glyph &getGlyph(FT_ULong codePoint, unsigned int characterSize,
                               bool bold, float outlineThickness = 0) const override;
 
-        float getKerning(uint32_t first, uint32_t second, unsigned int characterSize, bool bold) const override;
+        float getKerning(FT_ULong first, FT_ULong second, unsigned int characterSize, bool bold) const override;
 
         float getLineSpacing(unsigned int characterSize) const override;
 
@@ -142,8 +142,8 @@ namespace c2d {
         };
 
         struct bmfont_kerningpairs {
-            uint32_t first;
-            uint32_t second;
+            FT_ULong first;
+            FT_ULong second;
             int16_t amount;
         };
 

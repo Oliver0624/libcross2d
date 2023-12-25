@@ -179,7 +179,7 @@ namespace c2d {
                 case BMFONT_BLOCK_TYPE_KERNINGS: {
                     int32_t kerningPairsCount = (int32_t) blockSize / 10;
                     for (int32_t index = 0; index < kerningPairsCount; index++) {
-                        m_bmfont.kerningPairs.push_back({stream.getU32(), stream.getU32(), stream.getS16()});
+                        m_bmfont.kerningPairs.push_back({static_cast<FT_ULong>(stream.getU32()), static_cast<FT_ULong>(stream.getU32()), stream.getS16()});
                     }
                     break;
                 }
@@ -205,7 +205,7 @@ namespace c2d {
     static Glyph s_glyph;
 
 ////////////////////////////////////////////////////////////
-    const Glyph &BMFont::getGlyph(uint32_t codePoint, unsigned int characterSize,
+    const Glyph &BMFont::getGlyph(FT_ULong codePoint, unsigned int characterSize,
                                   bool bold, float outlineThickness) const {
         if (m_bmfont.glyphs.count((int) codePoint)) {
             if ((int16_t) characterSize == m_bmfont.info.fontSize) {
@@ -228,7 +228,7 @@ namespace c2d {
     }
 
 ////////////////////////////////////////////////////////////
-    float BMFont::getKerning(uint32_t first, uint32_t second, unsigned int characterSize, bool bold) const {
+    float BMFont::getKerning(FT_ULong first, FT_ULong second, unsigned int characterSize, bool bold) const {
         if (first == 0 || second == 0) return 0;
         if (m_bmfont.kerningPairs.empty()) return 0;
 

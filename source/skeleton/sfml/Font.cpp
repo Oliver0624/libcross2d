@@ -185,7 +185,7 @@ namespace c2d {
 
 
 ////////////////////////////////////////////////////////////
-    const Glyph &Font::getGlyph(uint32_t codePoint, unsigned int characterSize,
+    const Glyph &Font::getGlyph(FT_ULong codePoint, unsigned int characterSize,
                                 bool bold, float outlineThickness) const {
         // Get the page corresponding to the character size
         GlyphTable &glyphs = m_pages[characterSize].glyphs;
@@ -194,10 +194,15 @@ namespace c2d {
         }
 
         // Build the key by combining the code point, bold flag, and outline thickness
-        uint64_t key = (static_cast<uint64_t>(*&outlineThickness) << 32)
-                       | (static_cast<uint64_t>(bold ? 1 : 0) << 31)
-                       | static_cast<uint64_t>(codePoint);
+        //uint64_t key = (static_cast<uint64_t>(*&outlineThickness) << 32)
+        //               | (static_cast<uint64_t>(bold ? 1 : 0) << 31)
+        //               | static_cast<uint64_t>(codePoint);
 
+        // OLIVER UTF8 charCode use 8 bytes, have to use double hash table
+        uint64_t key = (static_cast<uint64_t>(bold ? 1 : 0) << 32)
+                         | static_cast<uint64_t>(*&outlineThickness);
+
+#if 0
         // Search the glyph into the cache
         if (auto it = glyphs.find(key); it != glyphs.end()) {
             // Found: just return it
@@ -205,14 +210,28 @@ namespace c2d {
         } else {
             // Not found: we have to load it
             Glyph glyph = loadGlyph(codePoint, characterSize, bold, outlineThickness);
-            //printf("Font::getGlyph(%c): advance: %f\n", codePoint, glyph.advance);
+            //printf("Font::getGlyph(%lu): advance: %f\n", codePoint, glyph.advance);
             return glyphs.emplace(key, glyph).first->second;
+        }
+#endif
+
+        if (auto it1 = glyphs.find(codePoint); it1 != glyphs.end()) {
+            if (auto it2 = it1->second.find(key); it2 != it1->second.end()) {
+                return it2->second;
+            } else {
+                Glyph glyph = loadGlyph(codePoint, characterSize, bold, outlineThickness);
+                return it1->second.emplace(key, glyph).first->second;
+            }
+        } else {
+            Glyph glyph = loadGlyph(codePoint, characterSize, bold, outlineThickness);
+            auto& innerMap = glyphs.emplace(codePoint, std::map<uint64_t, Glyph>{}).first->second;
+            return innerMap.emplace(key, glyph).first->second;
         }
     }
 
 
 ////////////////////////////////////////////////////////////
-    float Font::getKerning(uint32_t first, uint32_t second, unsigned int characterSize, bool bold) const {
+    float Font::getKerning(FT_ULong first, FT_ULong second, unsigned int characterSize, bool bold) const {
 #ifndef __NO_FREETYPE__
         // Special case where first or second is 0 (null character)
         if (first == 0 || second == 0)
@@ -379,7 +398,7 @@ namespace c2d {
 
 
 ////////////////////////////////////////////////////////////
-    Glyph Font::loadGlyph(uint32_t codePoint, unsigned int characterSize, bool bold, float outlineThickness) const {
+    Glyph Font::loadGlyph(FT_ULong codePoint, unsigned int characterSize, bool bold, float outlineThickness) const {
 #ifndef __NO_FREETYPE__
         // The glyph to return
         Glyph glyph;
@@ -433,7 +452,7 @@ namespace c2d {
 
         // Convert the glyph to a bitmap (i.e. rasterize it)
         if (FT_Glyph_To_Bitmap(&glyphDesc, FT_RENDER_MODE_NORMAL, nullptr, 1)) {
-            printf("Font::loadGlyph(%u): FT_Glyph_To_Bitmap error\n", codePoint);
+            printf("Font::loadGlyph(%lu): FT_Glyph_To_Bitmap error\n", codePoint);
             FT_Done_Glyph(glyphDesc);
             return glyph;
         }
