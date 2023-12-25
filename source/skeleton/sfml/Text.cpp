@@ -309,20 +309,20 @@ namespace c2d {
             switch (curChar) {
                 case ' ':
                     position.x += hspace;
-                    continue;
+                    break;
                 case '\t':
                     position.x += hspace * 4;
-                    continue;
+                    break;
                 case '\n':
                     position.y += vspace;
                     position.x = 0;
-                    continue;
+                    break;
                 default:
-                    continue;
+                    // For regular characters, add the advance offset of the glyph
+                    position.x += static_cast<float>(m_font->getGlyph(curChar, m_characterSize, bold).advance);
+                    break;
             }
 
-            // For regular characters, add the advance offset of the glyph
-            position.x += static_cast<float>(m_font->getGlyph(curChar, m_characterSize, bold).advance);
             pos += bytesToRead;
         }
 
@@ -501,7 +501,7 @@ namespace c2d {
         // Compute the location of the strike through dynamically
         // We use the center point of the lowercase 'x' glyph as the reference
         // We reuse the underline thickness as the thickness of the strike through as well
-        FloatRect xBounds = m_font->getGlyph(L'x', m_characterSize, bold).bounds;
+        FloatRect xBounds = m_font->getGlyph(L'x', m_characterSize, bold).bounds;  // OLIVER : TODO should use another Chinese character to caculate strikethrough offset
         float strikeThroughOffset = xBounds.top + xBounds.height / 2.f;
 
         // Precompute the variables needed by the algorithm
@@ -523,179 +523,165 @@ namespace c2d {
         float maxX = 0.f;
         float maxY = 0.f;
         FT_ULong prevChar = 0;
+        size_t asciiWordEnd = 0;
 
-        std::vector<std::string> words = Utility::split(m_string, " ");
-        for (size_t i = 0; i < words.size(); i++) {
+        // OLIVER : for UTF-8 character only
+        for (size_t pos = 0; pos < m_string.length(); ) {
+            // get next UTF-8 character
+            int bytesToRead = Utility::getCharacterBytes(static_cast<unsigned char>(m_string[pos]));
+            if (bytesToRead <= 0)
+                break;  // illegal UTF-8 character
+
+            if (pos + bytesToRead > m_string.length())
+                    bytesToRead = m_string.length() - bytesToRead;
+
+            FT_ULong curChar = 0;
+            for (int j = 0; j < bytesToRead; ++j) {
+                curChar <<= 6;
+                if (j == 0)
+                    curChar |= (m_string[pos] & utf8_first_mask[bytesToRead-1]);
+                else
+                    curChar |= (m_string[pos + j] & 0x3F);
+            }
+
+            if (curChar < 0x20) {
+                pos += 1;
+                continue;
+            }
+
             // handle maxSize.x in NewLine mode
             if (m_overflow == NewLine && m_max_size.x > 0) {
-#if 0
-                // calculate word width (approximated width for speed)
-                // edit: not precise enough...
-                auto width = (float) (words[i].size() * m_characterSize);
-#else
-                float width = 0;
 
-                //for (auto &c: words[i]) {
-                //    const Glyph &g = m_font->getGlyph(c, m_characterSize, bold, m_outlineThickness); //OLIVER
-                //    width += g.bounds.width;
-                //}
+                const Glyph &g = m_font->getGlyph(curChar, m_characterSize, bold, m_outlineThickness);
+                float width = g.bounds.width;
 
-                for (std::size_t pos = 0; pos < words[i].length(); ) {
-                    int bytesToRead = Utility::getCharacterBytes(static_cast<unsigned char>(words[i][pos]));
-                    if (bytesToRead <= 0) // illegal UTF-8 character
-                        break;
-                    
-                    if (pos + bytesToRead > words[i].length())
-                        bytesToRead = words[i].length() - bytesToRead;
+                // OLIVER : meet an ASCII visible character
+                if (pos >= asciiWordEnd && curChar < 0x7F && curChar > 0x20) {
+                    std::size_t pos2 = pos + 1;
+                    for ( ; pos2 < m_string.length(); pos2++) {
+                        auto curChar2 = static_cast<unsigned char>(m_string[pos2]);
+                        
+                        if (curChar2 >= 0x7F || curChar2 <= 0x20) {
+                            break;
+                        }
 
-                    FT_ULong curChar = 0;
-                    for (int j = 0; j < bytesToRead; ++j) {
-                        curChar <<= 6;
-                        if (j == 0)
-                            curChar |= (words[i][pos] & utf8_first_mask[bytesToRead-1]);
-                        else
-                            curChar |= (words[i][pos + j] & 0x3F);
+                        const Glyph &g1 = m_font->getGlyph(curChar2, m_characterSize, bold, m_outlineThickness);
+                        width += g1.bounds.width;
                     }
 
-                    const Glyph &g = m_font->getGlyph(curChar, m_characterSize, bold, m_outlineThickness);
-                    width += g.bounds.width;
-
-                    pos += bytesToRead;
+                    asciiWordEnd = pos2;
                 }
-#endif
+                
                 if ((x + width) * getScale().x > m_max_size.x) {
                     y += vspace;
                     x = 0;
                 }
             }
 
-            // add space back
-            if (i != words.size() - 1) {
-                words[i] += " ";
+#if 1       // OLIVER TODO : original words loop
+            // Apply the kerning offset
+            x += m_font->getKerning(prevChar, curChar, m_characterSize, bold);
+            prevChar = curChar;
+
+            // handle maxSize.x
+            if (m_overflow == Clamp && m_max_size.x > 0 && x * getScale().x > m_max_size.x) {
+                break;
             }
 
-            //for (std::size_t j = 0; j < words[i].length(); j++) {
-                //auto curChar = (FT_ULong) words[i][j];
-            
-            for (std::size_t pos = 0; pos < words[i].length(); ) {
-                int bytesToRead = Utility::getCharacterBytes(static_cast<unsigned char>(words[i][pos]));
-                if (bytesToRead <= 0) // illegal UTF-8 character
-                    break; // OLIVER TODO
-                
-                if (pos + bytesToRead > words[i].length())
-                    bytesToRead = words[i].length() - bytesToRead;
-
-                FT_ULong curChar = 0;
-                for (int j = 0; j < bytesToRead; ++j) {
-                    curChar <<= 6;
-                    if (j == 0)
-                        curChar |= (words[i][pos] & utf8_first_mask[bytesToRead-1]);
-                    else
-                        curChar |= (words[i][pos + j] & 0x3F);
-                }
-
-                // Apply the kerning offset
-                x += m_font->getKerning(prevChar, curChar, m_characterSize, bold);
-                prevChar = curChar;
-
-                // handle maxSize.x
-                if (m_max_size.x > 0 && x * getScale().x > m_max_size.x) {
-                    break;
-                }
-
-                // handle maxSize.y
-                if (m_max_size.y > 0 && y * getScale().y > m_max_size.y + 1) {
-                    break;
-                }
-
-                // If we're using the underlined style and there's a new line, draw a line
-                if (underlined && (curChar == L'\n')) {
-                    addLine(m_vertices, m_textureSize, x, y,
-                            m_fillColor, underlineOffset, underlineThickness);
-
-                    if (m_outlineThickness != 0)
-                        addLine(m_outlineVertices, m_textureSize, x, y,
-                                m_outlineColor, underlineOffset, underlineThickness, m_outlineThickness);
-                }
-
-                // If we're using the strike through style and there's a new line, draw a line across all characters
-                if (strikeThrough && (curChar == L'\n')) {
-                    addLine(m_vertices, m_textureSize, x, y,
-                            m_fillColor, strikeThroughOffset, underlineThickness);
-
-                    if (m_outlineThickness != 0)
-                        addLine(m_outlineVertices, m_textureSize, x, y,
-                                m_outlineColor, strikeThroughOffset, underlineThickness, m_outlineThickness);
-                }
-
-                // Handle special characters
-                if ((curChar == L' ') || (curChar == L'\t') || (curChar == L'\n')) {
-                    // Update the current bounds (min coordinates)
-                    minX = std::min(minX, x);
-                    minY = std::min(minY, y);
-                    switch (curChar) {
-                        case L' ':
-                            x += hspace;
-                            break;
-                        case L'\t':
-                            x += hspace * 4;
-                            break;
-                        case '\n':
-                            y += vspace;
-                            x = 0;
-                            break;
-                    }
-
-                    // Update the current bounds (max coordinates)
-                    maxX = std::max(maxX, x);
-                    maxY = std::max(maxY, y);
-
-                    // Next glyph, no need to create a quad for whitespace
-                    continue;
-                }
-
-                // Apply the outline
-                if (m_outlineThickness != 0) {
-                    const Glyph &glyph = m_font->getGlyph(curChar, m_characterSize, bold, m_outlineThickness);
-
-                    float left = glyph.bounds.left;
-                    float top = glyph.bounds.top;
-                    float right = glyph.bounds.left + glyph.bounds.width;
-                    float bottom = glyph.bounds.top + glyph.bounds.height;
-
-                    // Add the outline glyph to the vertices
-                    addGlyphQuad(m_outlineVertices, m_textureSize, {x, y}, m_outlineColor, glyph, italic);
-
-                    // Update the current bounds with the outlined glyph bounds
-                    minX = std::min(minX, x + left - italic * bottom);
-                    maxX = std::max(maxX, x + right - italic * top);
-                    minY = std::min(minY, y + top);
-                    maxY = std::max(maxY, y + bottom);
-                }
-
-                // Extract the current glyph's description
-                const Glyph &glyph = m_font->getGlyph(curChar, m_characterSize, bold);
-
-                // Add the glyph to the vertices
-                addGlyphQuad(m_vertices, m_textureSize, {x, y}, m_fillColor, glyph, italic);
-
-                // Update the current bounds with the non outlined glyph bounds
-                if (m_outlineThickness == 0) {
-                    float left = glyph.bounds.left;
-                    float top = glyph.bounds.top;
-                    float right = glyph.bounds.left + glyph.bounds.width;
-                    float bottom = glyph.bounds.top + glyph.bounds.height;
-
-                    minX = std::min(minX, x + left - italic * bottom);
-                    maxX = std::max(maxX, x + right - italic * top);
-                    minY = std::min(minY, y + top);
-                    maxY = std::max(maxY, y + bottom);
-                }
-
-                // Advance to the next character
-                x += glyph.advance;
-                pos += bytesToRead;;
+            // handle maxSize.y
+            if (m_max_size.y > 0 && y * getScale().y > m_max_size.y + 1) {
+                break;
             }
+
+            // If we're using the underlined style and there's a new line, draw a line
+            if (underlined && (curChar == L'\n')) {
+                addLine(m_vertices, m_textureSize, x, y,
+                        m_fillColor, underlineOffset, underlineThickness);
+
+                if (m_outlineThickness != 0)
+                    addLine(m_outlineVertices, m_textureSize, x, y,
+                            m_outlineColor, underlineOffset, underlineThickness, m_outlineThickness);
+            }
+
+            // If we're using the strike through style and there's a new line, draw a line across all characters
+            if (strikeThrough && (curChar == L'\n')) {
+                addLine(m_vertices, m_textureSize, x, y,
+                        m_fillColor, strikeThroughOffset, underlineThickness);
+
+                if (m_outlineThickness != 0)
+                    addLine(m_outlineVertices, m_textureSize, x, y,
+                            m_outlineColor, strikeThroughOffset, underlineThickness, m_outlineThickness);
+            }
+
+            // Handle special characters
+            if ((curChar == L' ') || (curChar == L'\t') || (curChar == L'\n')) {
+                // Update the current bounds (min coordinates)
+                minX = std::min(minX, x);
+                minY = std::min(minY, y);
+                switch (curChar) {
+                    case L' ':
+                        x += hspace;
+                        break;
+                    case L'\t':
+                        x += hspace * 4;
+                        break;
+                    case '\n':
+                        y += vspace;
+                        x = 0;
+                        break;
+                }
+
+                // Update the current bounds (max coordinates)
+                maxX = std::max(maxX, x);
+                maxY = std::max(maxY, y);
+
+                // Next glyph, no need to create a quad for whitespace
+                pos += bytesToRead;
+                continue;
+            }
+
+            // Apply the outline
+            if (m_outlineThickness != 0) {
+                const Glyph &glyph = m_font->getGlyph(curChar, m_characterSize, bold, m_outlineThickness);
+
+                float left = glyph.bounds.left;
+                float top = glyph.bounds.top;
+                float right = glyph.bounds.left + glyph.bounds.width;
+                float bottom = glyph.bounds.top + glyph.bounds.height;
+
+                // Add the outline glyph to the vertices
+                addGlyphQuad(m_outlineVertices, m_textureSize, {x, y}, m_outlineColor, glyph, italic);
+
+                // Update the current bounds with the outlined glyph bounds
+                minX = std::min(minX, x + left - italic * bottom);
+                maxX = std::max(maxX, x + right - italic * top);
+                minY = std::min(minY, y + top);
+                maxY = std::max(maxY, y + bottom);
+            }
+
+            // Extract the current glyph's description
+            const Glyph &glyph = m_font->getGlyph(curChar, m_characterSize, bold);
+
+            // Add the glyph to the vertices
+            addGlyphQuad(m_vertices, m_textureSize, {x, y}, m_fillColor, glyph, italic);
+
+            // Update the current bounds with the non outlined glyph bounds
+            if (m_outlineThickness == 0) {
+                float left = glyph.bounds.left;
+                float top = glyph.bounds.top;
+                float right = glyph.bounds.left + glyph.bounds.width;
+                float bottom = glyph.bounds.top + glyph.bounds.height;
+
+                minX = std::min(minX, x + left - italic * bottom);
+                maxX = std::max(maxX, x + right - italic * top);
+                minY = std::min(minY, y + top);
+                maxY = std::max(maxY, y + bottom);
+            }
+
+            // Advance to the next character
+            x += glyph.advance;
+            pos += bytesToRead;
+#endif
 
             // If we're using the underlined style, add the last line
             if (underlined && (x > 0)) {
