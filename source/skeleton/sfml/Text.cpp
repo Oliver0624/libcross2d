@@ -91,6 +91,9 @@ namespace c2d {
             m_vertices(Triangles),
             m_outlineVertices(Triangles),
             m_bounds(),
+            m_curPage(0),
+            m_pageOffset({0}),
+            m_load_fini(false),
             m_geometryNeedUpdate(false) {
         type = Type::Text;
     }
@@ -108,6 +111,9 @@ namespace c2d {
             m_vertices(Triangles),
             m_outlineVertices(Triangles),
             m_bounds(),
+            m_curPage(0),
+            m_pageOffset({0}),
+            m_load_fini(false),
             m_geometryNeedUpdate(true) {
         type = Type::Text;
         if (m_font == nullptr) {
@@ -122,6 +128,8 @@ namespace c2d {
             m_string = string;
             m_geometryNeedUpdate = true;
         }
+        // clear scroll text
+        m_curPage = 0; m_load_fini = false; m_pageOffset.clear(); m_pageOffset.push_back(0);
     }
 
 
@@ -289,8 +297,8 @@ namespace c2d {
             if (bytesToRead <= 0) // illegal UTF-8 character
                 return {};
             
-            if (pos + bytesToRead > m_string.length())
-                bytesToRead = m_string.length() - bytesToRead;
+            if (pos + bytesToRead > m_string.length()) // illegal
+                break;
 
             FT_ULong curChar = 0;
             for (int j = 0; j < bytesToRead; ++j) {
@@ -501,7 +509,7 @@ namespace c2d {
         // Compute the location of the strike through dynamically
         // We use the center point of the lowercase 'x' glyph as the reference
         // We reuse the underline thickness as the thickness of the strike through as well
-        FloatRect xBounds = m_font->getGlyph(L'x', m_characterSize, bold).bounds;  // OLIVER : TODO should use another Chinese character to caculate strikethrough offset
+        FloatRect xBounds = m_font->getGlyph(L'x', m_characterSize, bold).bounds;  // OLIVER : TODO maybe should use another Chinese character to caculate strikethrough offset
         float strikeThroughOffset = xBounds.top + xBounds.height / 2.f;
 
         // Precompute the variables needed by the algorithm
@@ -525,15 +533,26 @@ namespace c2d {
         FT_ULong prevChar = 0;
         size_t asciiWordEnd = 0;
 
+        size_t pos = 0;
+        if (m_curPage > m_pageOffset.size() - 1) { // load next page
+            m_curPage = m_pageOffset.size();
+        }
+        pos = m_pageOffset[m_curPage];
+
         // OLIVER : for UTF-8 character only
-        for (size_t pos = 0; pos < m_string.length(); ) {
+        for ( ; pos < m_string.length(); ) {
             // get next UTF-8 character
             int bytesToRead = Utility::getCharacterBytes(static_cast<unsigned char>(m_string[pos]));
-            if (bytesToRead <= 0)
-                break;  // illegal UTF-8 character
+            if (bytesToRead <= 0) { // illegal UTF-8 character
+                pos += 1;
+                continue;
+            }
 
-            if (pos + bytesToRead > m_string.length())
-                    bytesToRead = m_string.length() - bytesToRead;
+            if (pos + bytesToRead > m_string.length()) {// illegal
+                pos = m_string.length();
+                m_load_fini = true;
+                break;
+            }
 
             FT_ULong curChar = 0;
             for (int j = 0; j < bytesToRead; ++j) {
@@ -585,11 +604,13 @@ namespace c2d {
 
             // handle maxSize.x
             if (m_overflow == Clamp && m_max_size.x > 0 && x * getScale().x > m_max_size.x) {
+                pos += bytesToRead;
                 break;
             }
 
             // handle maxSize.y
             if (m_max_size.y > 0 && y * getScale().y > m_max_size.y + 1) {
+                pos += bytesToRead;
                 break;
             }
 
@@ -709,7 +730,30 @@ namespace c2d {
             m_size = {m_bounds.width, m_bounds.height};
         }
 
+        if (pos >= m_string.length()) {
+            m_load_fini = true;
+        } else if (m_pageOffset.size() - 1 == m_curPage) { // set new page offset
+            m_pageOffset.push_back(pos);
+        }
+
         m_vertices.update();
         m_outlineVertices.update();
     }
-} // namespace sf
+}
+// OLIVER TODO use a child class and add scroll-screen effect
+void Text::scrollText(ScrollType type) {
+    if (ScrollLeft == type) {
+        if (m_curPage != 0) {
+            m_curPage--;
+            m_geometryNeedUpdate = true;
+        }
+    } else if (ScrollRight == type) {
+        if (m_curPage == m_pageOffset.size() - 1) {
+            if (m_load_fini) {
+                return;
+            }
+        }
+        m_curPage++;
+        m_geometryNeedUpdate = true;
+    }
+}// namespace sf

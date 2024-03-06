@@ -62,6 +62,13 @@ namespace c2d {
             StrikeThrough = 1 << 3  ///< Strike through characters
         };
 
+        enum ScrollType {
+            ScrollCurrent = 0,
+            ScrollLeft = 1,
+            ScrollRight = 2
+        };
+        #define SCROLL_MAX  (ScrollRight+1)
+
         ////////////////////////////////////////////////////////////
         /// \brief Enumeration of the string overflow setting
         ///
@@ -365,6 +372,8 @@ namespace c2d {
 
         void setLineSpacingModifier(int size);
 
+        void scrollText(ScrollType type);
+
     protected:
 
         ////////////////////////////////////////////////////////////
@@ -404,6 +413,9 @@ namespace c2d {
         mutable c2d::Vector2f m_max_size = {4096, 4096};
         mutable c2d::Vector2f m_size;
         int m_line_spacing = 0;
+        mutable size_t m_curPage;  ///< OLIVER current page num, start from 0
+        mutable std::vector<size_t> m_pageOffset;   ///< offset of each page
+        mutable bool m_load_fini;  ///< is offset all recorded 
         Origin m_text_origin = Origin::TopLeft;
         mutable Vector2i m_textureSize = {128, 128};
     };
