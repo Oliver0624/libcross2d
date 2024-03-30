@@ -604,13 +604,11 @@ namespace c2d {
 
             // handle maxSize.x
             if (m_overflow == Clamp && m_max_size.x > 0 && x * getScale().x > m_max_size.x) {
-                pos += bytesToRead;
                 break;
             }
 
             // handle maxSize.y
             if (m_max_size.y > 0 && y * getScale().y > m_max_size.y + 1) {
-                pos += bytesToRead;
                 break;
             }
 
