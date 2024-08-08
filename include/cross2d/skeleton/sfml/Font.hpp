@@ -335,6 +335,7 @@ typedef unsigned long FT_ULong;
         Texture::Filter m_filtering = Texture::Filter::Linear;
         Vector2f m_offset;
         std::string m_font_path;
+        std::string m_buff;
     };
 
 } // namespace c2d

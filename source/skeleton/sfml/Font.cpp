@@ -25,6 +25,9 @@
 ////////////////////////////////////////////////////////////
 // Headers
 ////////////////////////////////////////////////////////////
+#include <iostream>
+#include <fstream>
+
 #include "cross2d/c2d.h"
 #include "cross2d/skeleton/sfml/Font.hpp"
 
@@ -61,6 +64,7 @@ namespace c2d {
 ////////////////////////////////////////////////////////////
     bool Font::loadFromFile(const std::string &filename) {
 #ifndef __NO_FREETYPE__
+#if 0
         // Cleanup the previous resources
         cleanup();
         m_refCount = new int(1);
@@ -107,6 +111,25 @@ namespace c2d {
         m_font_path = filename;
 
         return true;
+#else
+        std::ifstream file;
+        file.open(filename, std::ios::binary | std::ios::ate);
+        if (!file.is_open()) {
+            return false;
+        }
+
+        std::streampos fileSize = file.tellg();
+        m_buff.resize(fileSize + 1);
+
+        file.seekg(0, std::ios::beg);
+        if (!file.read(const_cast<char*>(m_buff.c_str()), fileSize)) {
+            file.close();
+            return false;
+        }
+        file.close();
+
+        return loadFromMemory((const void *)m_buff.c_str(), fileSize);
+#endif
 #else
         return false;
 #endif
