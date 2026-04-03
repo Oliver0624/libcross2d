@@ -374,6 +374,8 @@ namespace c2d {
 
         void scrollText(ScrollType type);
 
+        size_t getScrollPage() const;
+
     protected:
 
         ////////////////////////////////////////////////////////////

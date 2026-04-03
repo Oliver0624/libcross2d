@@ -449,6 +449,10 @@ namespace c2d {
         m_line_spacing = size;
     }
 
+    size_t Text::getScrollPage() const {
+        return m_curPage;
+    }
+
     void Text::onUpdate() {
         if (!m_font || m_string.empty()) {
             return;
