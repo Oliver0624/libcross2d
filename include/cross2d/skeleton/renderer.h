@@ -9,6 +9,7 @@
 #include <cstring>
 #include <cstdarg>
 #include <cstdio>
+#include <vector>
 
 #include "texture.h"
 #include "shader_list.h"
@@ -36,6 +37,16 @@ namespace c2d {
         virtual void draw(VertexArray *vertexArray, const Transform &transform, Texture *texture) {};
 
         virtual void clear() {};
+
+        virtual void pushClipRect(const FloatRect &rect);
+
+        virtual void popClipRect();
+
+        virtual void clearClipRects();
+
+        bool hasClipRect() const;
+
+        FloatRect getClipRect() const;
 
         virtual void flip(bool draw = true, bool process_inputs = true);
 
@@ -89,6 +100,8 @@ namespace c2d {
 
         void onUpdate() override;
 
+        virtual void applyClipRect(const FloatRect *rect) {};
+
         Color m_clearColor = Color::Black;
         bool m_process_inputs = true;
         Input *m_input = nullptr;
@@ -100,6 +113,7 @@ namespace c2d {
         float m_fps = 0;
         float m_frames = 0;
         bool m_stats_print = false;
+        std::vector<FloatRect> m_clipRects;
     };
 }
 

@@ -9,6 +9,8 @@
 #include <glm/mat4x4.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <algorithm>
+#include <cmath>
 
 #include "cross2d/c2d.h"
 
@@ -146,6 +148,44 @@ void GLRenderer::draw(VertexArray *vertexArray, const Transform &transform, Text
     vertexArray->unbind();
 
     GL_CHECK(glUseProgram(0));
+}
+
+void GLRenderer::applyClipRect(const FloatRect *rect) {
+#if defined(__SDL2__)
+    int drawableW, drawableH;
+    SDL_Window *window = ((SDL2Renderer *) this)->getWindow();
+    SDL_GL_GetDrawableSize(window, &drawableW, &drawableH);
+#else
+    int drawableW = (int) getSize().x;
+    int drawableH = (int) getSize().y;
+#endif
+
+    if (rect == nullptr) {
+        GL_CHECK(glDisable(GL_SCISSOR_TEST));
+        return;
+    }
+
+    float logicalW = getSize().x > 0 ? getSize().x : (float) drawableW;
+    float logicalH = getSize().y > 0 ? getSize().y : (float) drawableH;
+    float scaleX = logicalW > 0 ? (float) drawableW / logicalW : 1.0f;
+    float scaleY = logicalH > 0 ? (float) drawableH / logicalH : 1.0f;
+
+    int left = (int) std::floor(rect->left * scaleX);
+    int top = (int) std::floor(rect->top * scaleY);
+    int right = (int) std::ceil((rect->left + rect->width) * scaleX);
+    int bottom = (int) std::ceil((rect->top + rect->height) * scaleY);
+
+    left = std::clamp(left, 0, drawableW);
+    right = std::clamp(right, 0, drawableW);
+    top = std::clamp(top, 0, drawableH);
+    bottom = std::clamp(bottom, 0, drawableH);
+
+    int width = std::max(0, right - left);
+    int height = std::max(0, bottom - top);
+    int scissorY = drawableH - bottom;
+
+    GL_CHECK(glEnable(GL_SCISSOR_TEST));
+    GL_CHECK(glScissor(left, scissorY, width, height));
 }
 
 void GLRenderer::clear() {

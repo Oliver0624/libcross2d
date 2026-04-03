@@ -25,6 +25,10 @@ namespace c2d {
 
         void flip(bool draw = true, bool inputs = true) override;
 
+    protected:
+
+        void applyClipRect(const FloatRect *rect) override;
+
     private:
 
         const GLenum modes[7] = {GL_POINTS, GL_LINES, GL_LINE_STRIP, GL_TRIANGLES,

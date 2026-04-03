@@ -46,6 +46,43 @@ Renderer::Renderer(const Vector2f &size) : Rectangle(size) {
     m_fpsClock = new C2DClock();
 }
 
+void Renderer::pushClipRect(const FloatRect &rect) {
+    FloatRect clipped = rect;
+    if (!m_clipRects.empty()) {
+        if (!m_clipRects.back().intersects(rect, clipped)) {
+            clipped = {0, 0, 0, 0};
+        }
+    }
+    m_clipRects.push_back(clipped);
+    applyClipRect(&m_clipRects.back());
+}
+
+void Renderer::popClipRect() {
+    if (m_clipRects.empty()) {
+        return;
+    }
+
+    m_clipRects.pop_back();
+    if (m_clipRects.empty()) {
+        applyClipRect(nullptr);
+    } else {
+        applyClipRect(&m_clipRects.back());
+    }
+}
+
+void Renderer::clearClipRects() {
+    m_clipRects.clear();
+    applyClipRect(nullptr);
+}
+
+bool Renderer::hasClipRect() const {
+    return !m_clipRects.empty();
+}
+
+FloatRect Renderer::getClipRect() const {
+    return m_clipRects.empty() ? FloatRect(0, 0, 0, 0) : m_clipRects.back();
+}
+
 void Renderer::onUpdate() {
     // time
     m_deltaTime = m_deltaClock->restart();
@@ -82,6 +119,7 @@ void Renderer::flip(bool draw, bool inputs) {
 
     // call base class (draw childs)
     if (draw) {
+        clearClipRects();
         clear();
         Transform trans = Transform::Identity;
         Rectangle::onDraw(trans, draw);

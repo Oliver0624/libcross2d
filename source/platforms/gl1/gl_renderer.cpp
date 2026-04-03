@@ -9,6 +9,8 @@
 //#define __GL1_IMMEDIATE__ 1
 
 #include "cross2d/c2d.h"
+#include <algorithm>
+#include <cmath>
 
 using namespace c2d;
 
@@ -130,6 +132,33 @@ void GLRenderer::clear() {
                  (float) m_clearColor.a / 255.0f);
     glClearDepth(0.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+}
+
+void GLRenderer::applyClipRect(const FloatRect *rect) {
+    int drawableW = (int) getSize().x;
+    int drawableH = (int) getSize().y;
+
+    if (rect == nullptr) {
+        glDisable(GL_SCISSOR_TEST);
+        return;
+    }
+
+    int left = (int) std::floor(rect->left);
+    int top = (int) std::floor(rect->top);
+    int right = (int) std::ceil(rect->left + rect->width);
+    int bottom = (int) std::ceil(rect->top + rect->height);
+
+    left = std::clamp(left, 0, drawableW);
+    right = std::clamp(right, 0, drawableW);
+    top = std::clamp(top, 0, drawableH);
+    bottom = std::clamp(bottom, 0, drawableH);
+
+    int width = std::max(0, right - left);
+    int height = std::max(0, bottom - top);
+    int scissorY = drawableH - bottom;
+
+    glEnable(GL_SCISSOR_TEST);
+    glScissor(left, scissorY, width, height);
 }
 
 void GLRenderer::flip(bool draw, bool inputs) {

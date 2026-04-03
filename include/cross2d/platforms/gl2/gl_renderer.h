@@ -27,6 +27,10 @@ namespace c2d {
 
         unsigned int vao = 0;
 
+    protected:
+
+        void applyClipRect(const FloatRect *rect) override;
+
     private:
 
         const GLenum modes[7] = {GL_POINTS, GL_LINES, GL_LINE_STRIP, GL_TRIANGLES,
