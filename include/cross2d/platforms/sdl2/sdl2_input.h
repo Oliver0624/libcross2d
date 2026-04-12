@@ -27,6 +27,8 @@ namespace c2d {
 
         int getKeyState(int key) override;
 
+        Pointer getPointer(int player = 0) override;
+
         Vector2f getTouch() override;
     };
 }

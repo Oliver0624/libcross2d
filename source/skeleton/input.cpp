@@ -158,8 +158,19 @@ Input::Player *Input::update() {
     }
 
     /// process touch
+    m_players[0].pointer = getPointer();
     m_players[0].touch = getTouch();
+    if (!m_players[0].pointer.active && m_players[0].touch != Vector2f()) {
+        m_players[0].pointer.active = true;
+        m_players[0].pointer.type = Input::Pointer::Touch;
+        m_players[0].pointer.position = m_players[0].touch;
+        m_players[0].pointer.buttons |= Input::Pointer::Primary;
+    }
     if (m_players[0].touch != Vector2f()) {
+        m_players[0].buttons |= Input::Button::Touch;
+    } else if (m_players[0].pointer.active
+               && (m_players[0].pointer.buttons & Input::Pointer::Primary)) {
+        m_players[0].touch = m_players[0].pointer.position;
         m_players[0].buttons |= Input::Button::Touch;
     }
 

@@ -89,8 +89,73 @@ int SDL2Input::getKeyState(int key) {
 #endif
 }
 
+Input::Pointer SDL2Input::getPointer(int player) {
+    Pointer pointer{};
+    int x = 0;
+    int y = 0;
+    int dx = 0;
+    int dy = 0;
+    Uint32 state = SDL_GetMouseState(&x, &y);
+
+    (void) player;
+
+    pointer.position = {(float) x, (float) y};
+    SDL_GetRelativeMouseState(&dx, &dy);
+    pointer.delta = {(float) dx, (float) dy};
+    pointer.active = SDL_GetMouseFocus() != nullptr || state != 0;
+    pointer.type = Pointer::Mouse;
+    if (state & SDL_BUTTON(SDL_BUTTON_LEFT)) {
+        pointer.buttons |= Pointer::Primary;
+    }
+    if (state & SDL_BUTTON(SDL_BUTTON_RIGHT)) {
+        pointer.buttons |= Pointer::Secondary;
+    }
+    if (state & SDL_BUTTON(SDL_BUTTON_MIDDLE)) {
+        pointer.buttons |= Pointer::Middle;
+    }
+
+#if SDL_VERSION_ATLEAST(2, 0, 0)
+    SDL_Window *window = SDL_GetMouseFocus();
+    if (window == nullptr) {
+        window = SDL_GetKeyboardFocus();
+    }
+    int windowWidth = 0;
+    int windowHeight = 0;
+    if (window != nullptr) {
+        SDL_GetWindowSize(window, &windowWidth, &windowHeight);
+    }
+
+    if (windowWidth > 0 && windowHeight > 0) {
+        int devices = SDL_GetNumTouchDevices();
+        for (int device = 0; device < devices; device++) {
+            SDL_TouchID touchId = SDL_GetTouchDevice(device);
+            int fingers = SDL_GetNumTouchFingers(touchId);
+            for (int fingerIndex = 0; fingerIndex < fingers; fingerIndex++) {
+                SDL_Finger *finger = SDL_GetTouchFinger(touchId, fingerIndex);
+                if (finger == nullptr) {
+                    continue;
+                }
+
+                pointer.position = {
+                        finger->x * (float) windowWidth,
+                        finger->y * (float) windowHeight
+                };
+                pointer.delta = Vector2f(0, 0);
+                pointer.buttons |= Pointer::Primary;
+                pointer.type = Pointer::Touch;
+                pointer.active = true;
+                return pointer;
+            }
+        }
+    }
+#endif
+
+    return pointer;
+}
+
 Vector2f SDL2Input::getTouch() {
-    int x, y;
+    int x = 0;
+    int y = 0;
 
     if (SDL_GetMouseState(&x, &y) & SDL_BUTTON(SDL_BUTTON_LEFT)) {
         return {(float) x, (float) y};

@@ -62,6 +62,26 @@ namespace c2d {
             short value;
         };
 
+        struct Pointer {
+            enum Type {
+                None,
+                Mouse,
+                Touch
+            };
+
+            enum Buttons : unsigned int {
+                Primary = BIT(0),
+                Secondary = BIT(1),
+                Middle = BIT(2)
+            };
+
+            Vector2f position{};
+            Vector2f delta{};
+            unsigned int buttons = 0;
+            Type type = None;
+            bool active = false;
+        };
+
         struct Player {
             std::vector<ButtonMapping> mapping{};
             std::vector<ButtonMapping> mapping_default{};
@@ -74,6 +94,7 @@ namespace c2d {
             bool enabled = false;
             void *data = nullptr;
             int id = 0;
+            Pointer pointer{};
             // touch
             Vector2f touch;
         };
@@ -125,6 +146,8 @@ namespace c2d {
         virtual int getButtonState(const Player &player, int button) { return false; };
 
         virtual int getKeyState(int key) { return false; };
+
+        virtual Pointer getPointer(int player = 0) { return {}; };
 
         virtual Vector2f getTouch() { return {}; };
 
