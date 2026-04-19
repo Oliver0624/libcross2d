@@ -3,6 +3,8 @@
 //
 
 #include <string>
+#include <vector>
+#include <algorithm>
 #include "cross2d/c2d.h"
 
 using namespace c2d;
@@ -63,7 +65,22 @@ void Audio::play(const void *data, int samples, SyncMode syncMode) {
         }
 
         lock();
-        m_buffer->push((int16_t *) data, samples * channels);
+        float gain = m_gain;
+        if (gain >= 0.999f) {
+            m_buffer->push((int16_t *) data, samples * channels);
+        } else if (gain <= 0.001f) {
+            // Fully muted: skip push to keep output silent and avoid extra work.
+        } else {
+            int count = samples * channels;
+            std::vector<int16_t> scaled((size_t) count);
+            const auto *in = (const int16_t *) data;
+            for (int i = 0; i < count; i++) {
+                int v = (int) ((float) in[i] * gain);
+                v = std::max(-32768, std::min(32767, v));
+                scaled[(size_t) i] = (int16_t) v;
+            }
+            m_buffer->push(scaled.data(), count);
+        }
         unlock();
     }
 }
@@ -82,6 +99,15 @@ void Audio::pause(int pause) {
         m_buffer->clear();
         unlock();
     }
+}
+
+void Audio::setGain(float gain) {
+    if (gain < 0.0f) {
+        gain = 0.0f;
+    } else if (gain > 1.0f) {
+        gain = 1.0f;
+    }
+    m_gain = gain;
 }
 
 int Audio::getSampleRate() {

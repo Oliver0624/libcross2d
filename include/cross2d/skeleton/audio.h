@@ -37,6 +37,12 @@ namespace c2d {
             return paused;
         }
 
+        virtual void setGain(float gain);
+
+        virtual float getGain() const {
+            return m_gain;
+        }
+
         bool lock();
 
         bool unlock();
@@ -70,6 +76,7 @@ namespace c2d {
         int m_samples_size = 0;
         bool paused = false;
         bool available = false;
+        float m_gain = 1.0f;
         C2DAudioCallback callback = nullptr;
 
     private:
